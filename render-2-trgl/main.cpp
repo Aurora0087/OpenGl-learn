@@ -98,6 +98,12 @@ namespace
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
         glEnableVertexAttribArray(0);
         glBindVertexArray(0);
+
+        GLshort indices[] = {1,2,0, 0,3,4};
+        GLuint indexBufferID;
+        glGenBuffers(1,&indexBufferID);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,indexBufferID);//GL_ARRAY_BUFFER takes up space in graphics card while  GL_ELEMENT_ARRAY_BUFFER use RAM
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices),indices,GL_STATIC_DRAW);
         return true;
     }
 
