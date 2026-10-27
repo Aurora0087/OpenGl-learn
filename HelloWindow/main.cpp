@@ -1,97 +1,118 @@
-// GLEW declares OpenGL functions and loads their addresses when glewInit() is called.
-// Include it before GLFW to avoid conflicting OpenGL headers.
+// Include GLEW before GLFW: GLEW supplies the OpenGL function declarations.
 #include <GL/glew.h>
-// GLFW provides windows, OpenGL contexts, and keyboard/mouse input.
 #include <GLFW/glfw3.h>
-// Provides std::cout for normal output and std::cerr for errors.
+
 #include <iostream>
 
-// Program entry point; argc and argv contain command-line arguments (unused here).
-int main(int argc, char const *argv[])
+namespace
 {
-    // Initialize GLFW; ! means enter this block if initialization fails.
-    if (!glfwInit())
+    constexpr int windowWidth = 800;
+    constexpr int windowHeight = 600;
+    constexpr const char *windowTitle = "my 1st opengl window";
+
+    GLFWwindow *createWindow()
     {
-        std::cerr << "Failed to init  GLFW\n";
-        // Exit the program with a nonzero value to indicate failure.
-        return -1;
-    }
+        // Choose X11 before initializing GLFW so GLEW can use GLX.
+        // On a Wayland desktop, XWayland supplies X11 support.
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
 
-    // Request OpenGL version 3.3 for the next window we create.
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    // Use the core profile, which excludes old, deprecated OpenGL features.
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    // Create an 800 x 600 window with this title and an OpenGL context.
-    // First nullptr: windowed mode; second nullptr: do not share another context.
-    // A tiling window manager may resize the window after creation.
-    GLFWwindow *window = glfwCreateWindow(
-        800, 600, "my 1st opengl window", nullptr, nullptr);
-
-    // A null pointer means window or context creation failed.
-    if (!window)
-    {
-        std::cerr << "Fail to create window\n";
-        // Release GLFW resources before exiting after a failure.
-        glfwTerminate();
-        // Exit the program with a nonzero value to indicate failure.
-        return -1;
-    }
-
-    // Make this window's OpenGL context active on this thread before OpenGL calls.
-    glfwMakeContextCurrent(window);
-
-    // Ask GLEW to expose functions with available entry points, including ones
-    // whose extensions are not advertised. This does not initialize GLEW itself.
-    // NOTE: This file currently has no glewInit() call.
-    glewExperimental = GL_TRUE;
-    
-    // Request X11 (through XWayland on a Wayland desktop) for GLFW initialization.
-    // NOTE: This hint must be set BEFORE the first glfwInit() to select X11.
-    // Here GLFW is already initialized, so this does not switch the current window.
-    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
-
-    // GLFW is already initialized: this second call succeeds without reinitializing it.
-    if (!glfwInit())
-    {
-        std::cerr << "Failed to init GLFW\n";
-        // Exit the program with a nonzero value to indicate failure.
-        return -1;
-    }
-
-    // Query the active context's OpenGL version and print it.
-    std::cout << "OpenGl version:" << glGetString(GL_VERSION) << "\n";
-
-    // Render frames until the window's close flag is set.
-    while (!glfwWindowShouldClose(window))
-    {
-        // Check whether Escape is currently held down.
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        if (!glfwInit())
         {
-            // Request that the render loop ends on its next condition check.
-            glfwSetWindowShouldClose(window, true);
+            std::cerr << "Failed to initialize GLFW\n";
+            return nullptr;
         }
 
-        // Map OpenGL drawing to this pixel rectangle in the framebuffer.
-        // These fixed dimensions do not automatically follow window resizing.
-        glViewport(0, 0, 800, 600);
-        // Set the clear color: red, green, blue, alpha (values from 0 to 1).
-        glClearColor(0.1f, 0.15f, 0.25f, 1.0f);
-        // Fill the color buffer with the chosen background color.
-        glClear(GL_COLOR_BUFFER_BIT);
+        // Request OpenGL 3.3 core, without deprecated OpenGL features.
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-        // Present the completed back buffer by swapping it with the front buffer.
-        glfwSwapBuffers(window);
-        // Process pending input and window events, updating GLFW's input state.
-        glfwPollEvents();
+        // nullptr arguments mean windowed mode and no shared OpenGL context.
+        GLFWwindow *window = glfwCreateWindow(
+            windowWidth, windowHeight, windowTitle, nullptr, nullptr);
+
+        if (!window)
+        {
+            std::cerr << "Failed to create window\n";
+            glfwTerminate();
+            return nullptr;
+        }
+
+        // OpenGL calls on this thread now use this window's context.
+        glfwMakeContextCurrent(window);
+        return window;
     }
 
-    // Destroy the window and its OpenGL context after the loop finishes.
-    glfwDestroyWindow(window);
-    // Release GLFW's remaining resources.
-    glfwTerminate();
+    bool initializeOpenGL()
+    {
+        // Load OpenGL function addresses only after a context is current.
+        glewExperimental = GL_TRUE;
+        const GLenum result = glewInit();
 
-    // Report successful completion to the operating system.
+        if (result != GLEW_OK)
+        {
+            // Include the numeric code because some GLEW errors have no message.
+            std::cerr << "Failed to initialize GLEW (code " << result << "): "
+                      << glewGetErrorString(result) << '\n';
+            return false;
+        }
+
+        std::cout << "OpenGL version: " << glGetString(GL_VERSION) << '\n';
+        return true;
+    }
+
+    void processInput(GLFWwindow *window)
+    {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        {
+            // Set the close flag so the main loop can finish.
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
+    }
+
+    void renderFrame(GLFWwindow *window)
+    {
+        // Use framebuffer pixels so the viewport follows resizing and display scaling.
+        int width = 0;
+        int height = 0;
+        glfwGetFramebufferSize(window, &width, &height);
+        glViewport(0, 0, width, height);
+
+        // Set the background color (red, green, blue, alpha), then clear to it.
+        glClearColor(0.1f, 0.15f, 0.25f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // Present the completed frame by swapping the front and back buffers.
+        glfwSwapBuffers(window);
+    }
+} // namespace: keep these helpers and constants local to this source file.
+
+int main()
+{
+    GLFWwindow *window = createWindow();
+    if (!window)
+    {
+        return -1;
+    }
+
+    if (!initializeOpenGL())
+    {
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+
+    // Keep processing events and drawing until Escape or a close request.
+    while (!glfwWindowShouldClose(window))
+    {
+        // Update keyboard state and handle pending window events.
+        glfwPollEvents();
+        processInput(window);
+        renderFrame(window);
+    }
+
+    // Release the window/context before shutting down GLFW.
+    glfwDestroyWindow(window);
+    glfwTerminate();
     return 0;
 }
